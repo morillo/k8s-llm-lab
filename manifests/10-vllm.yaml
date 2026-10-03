@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hf-cache
+  namespace: llm
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: standard          # kind's local-path provisioner
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm
+  namespace: llm
+  labels: {app: vllm}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate                    # one accelerator + RWO volume: stop old pod before starting new
+  selector:
+    matchLabels: {app: vllm}
+  template:
+    metadata:
+      labels: {app: vllm}
+    spec:
+      enableServiceLinks: false       # REQUIRED: the Service "vllm" would inject VLLM_PORT=tcp://..., which vLLM reads as its own setting and crashes
+      nodeSelector:
+        pool: inference               # go to the inference pool...
+      tolerations:                    # ...and be allowed past its taint
+        - {key: dedicated, operator: Equal, value: inference, effect: NoSchedule}
+      containers:
+        - name: vllm
+          image: localhost:5001/vllm-openai-cpu:__VLLM_TAG__
+          command: ["vllm", "serve"]
+          args:
+            - Qwen/Qwen2.5-1.5B-Instruct
+            - --host=0.0.0.0
+            - --port=8000
+            - --served-model-name=qwen2.5-1.5b   # the name clients send in "model"
+            - --dtype=bfloat16                    # float32 if Step 0.3 printed nothing
+            - --max-model-len=4096
+            - --max-num-seqs=8
+          env:
+            - {name: HF_HOME, value: /models/hf}          # weights land on the PVC
+            - {name: VLLM_CACHE_ROOT, value: /models/vllm} # compile cache survives pod restarts
+            - {name: VLLM_CPU_KVCACHE_SPACE, value: "4"}  # GiB reserved for KV cache
+            - {name: VLLM_CPU_OMP_THREADS_BIND, value: "auto"}
+            - name: HF_TOKEN                               # only needed for gated models
+              valueFrom:
+                secretKeyRef: {name: hf-token, key: HF_TOKEN, optional: true}
+          ports:
+            - {name: http, containerPort: 8000}
+          resources:
+            requests: {cpu: "6", memory: 12Gi}
+            limits:
+              memory: 16Gi                # no CPU limit: CFS throttling hurts token latency
+              example.com/gpu: "1"        # the fake accelerator from Step 2.3
+          securityContext:
+            capabilities:
+              add: ["SYS_NICE"]           # lets vLLM set NUMA memory policy (per vLLM CPU docs)
+          startupProbe:                   # first start = download + load; allow up to 20 min
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 120
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 5             # default is 1 s; a CPU-saturated vLLM can answer slower
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 4           # ~1 min of consecutive failures before a restart
+          volumeMounts:
+            - {name: hf-cache, mountPath: /models}
+            - {name: dshm, mountPath: /dev/shm}
+      volumes:
+        - name: hf-cache
+          persistentVolumeClaim: {claimName: hf-cache}
+        - name: dshm                      # pods get only 64 MiB /dev/shm by default
+          emptyDir: {medium: Memory, sizeLimit: 2Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm
+  namespace: llm
+  labels: {app: vllm}                 # the ServiceMonitor in Step 6 selects on this
+spec:
+  selector: {app: vllm}
+  ports:
+    - {name: http, port: 8000, targetPort: http}
