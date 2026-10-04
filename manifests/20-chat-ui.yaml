@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: chat-ui
-          image: localhost:5001/chat-ui:0.1.0
+          image: localhost:5001/chat-ui:0.2.0
           ports:
             - {name: http, containerPort: 8080}
           envFrom:
