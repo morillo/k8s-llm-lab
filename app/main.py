@@ -18,6 +18,15 @@ POD = os.getenv("HOSTNAME", "local")          # Kubernetes sets HOSTNAME to the 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("chat-ui")
 
+class DropProbeLogs(logging.Filter):
+    """Keep uvicorn access logs for real traffic; drop kubelet probe hits."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/healthz" not in record.getMessage()
+
+
+logging.getLogger("uvicorn.access").addFilter(DropProbeLogs())
+
 # vLLM ignores the API key, but the SDK requires a non-empty string
 client = AsyncOpenAI(base_url=LLM_BASE_URL, api_key="not-needed", timeout=120.0)
 app = FastAPI(title="chat-ui")
@@ -99,7 +108,7 @@ PAGE = """<!doctype html>
  #out{white-space:pre-wrap;border:1px solid #ccc;border-radius:8px;padding:12px;min-height:80px;margin-top:12px}
  small{color:#666}
 </style></head><body>
-<h1>Ask the in-cluster LLM</h1>
+<h1>Ask the in-cluster LLM · v0.2.0</h1>
 <textarea id="q" placeholder="Ask a question..."></textarea>
 <button id="go">Ask</button> <small id="meta"></small>
 <div id="out"></div>
