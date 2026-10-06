@@ -1,0 +1,6 @@
+apiVersion: v2
+name: llm-lab
+description: vLLM serving a small open model, plus a FastAPI chat UI
+type: application
+version: 0.1.0        # the chart's own version
+appVersion: "0.2.0"   # the chat-ui version it ships

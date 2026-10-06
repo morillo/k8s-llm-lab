@@ -1,0 +1,34 @@
+vllm:
+  image:
+    repository: localhost:5001/vllm-openai-cpu
+    tag: ""                        # required: --set vllm.image.tag=$VLLM_TAG (from lab.env)
+  model: Qwen/Qwen2.5-1.5B-Instruct
+  servedModelName: qwen2.5-1.5b
+  dtype: bfloat16
+  maxModelLen: 4096
+  maxNumSeqs: 8
+  extraArgs: []                    # e.g. ["--gpu-memory-utilization=0.90"] on GPUs
+  env:                             # rendered in key order, after HF_HOME and VLLM_CACHE_ROOT
+    VLLM_CPU_KVCACHE_SPACE: "4"
+    VLLM_CPU_OMP_THREADS_BIND: auto
+  resources:
+    requests: {cpu: "6", memory: 12Gi}
+    limits: {memory: 16Gi, example.com/gpu: "1"}
+  nodeSelector: {pool: inference}
+  tolerations:
+    - {key: dedicated, operator: Equal, value: inference, effect: NoSchedule}
+  capabilities: [SYS_NICE]
+  cache:
+    size: 20Gi
+    storageClassName: standard
+
+chatUi:
+  image:
+    repository: localhost:5001/chat-ui
+    tag: "0.2.0"
+  replicas: 2
+  maxTokens: "256"
+  nodePort: 30080
+
+monitoring:
+  serviceMonitor: true

@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chat-ui-config
+data:
+  LLM_BASE_URL: "http://vllm.{{ .Release.Namespace }}.svc.cluster.local:8000/v1"
+  LLM_MODEL: {{ .Values.vllm.servedModelName | quote }}
+  MAX_TOKENS: {{ .Values.chatUi.maxTokens | quote }}
