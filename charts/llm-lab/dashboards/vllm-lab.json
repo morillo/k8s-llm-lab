@@ -1,0 +1,115 @@
+{
+  "title": "vLLM lab",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Requests running vs waiting",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{__name__}}",
+          "expr": "{__name__=~\"vllm:num_requests_(running|waiting)\"}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Generation throughput (tokens/s)",
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "tokens/s",
+          "expr": "sum(rate(vllm:generation_tokens_total[1m]))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 time to first token (s)",
+      "gridPos": {
+        "x": 12,
+        "y": 9,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "p95 TTFT",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(vllm:time_to_first_token_seconds_bucket[5m])))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "KV-cache usage (0-1)",
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "kv cache",
+          "expr": "vllm:kv_cache_usage_perc"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "vLLM CPU (cores)",
+      "gridPos": {
+        "x": 12,
+        "y": 17,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "cores",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"llm\",container=\"vllm\"}[1m]))"
+        }
+      ]
+    }
+  ],
+  "uid": "vllm-lab"
+}

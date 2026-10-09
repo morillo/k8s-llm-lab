@@ -32,3 +32,6 @@ chatUi:
 
 monitoring:
   serviceMonitor: true
+  grafanaDashboard:
+    enabled: true
+    namespace: monitoring

@@ -1,0 +1,12 @@
+{{- if .Values.monitoring.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vllm-lab-dashboard
+  namespace: {{ .Values.monitoring.grafanaDashboard.namespace }}
+  labels:
+    grafana_dashboard: "1"
+data:
+  vllm-lab.json: |-
+{{ .Files.Get "dashboards/vllm-lab.json" | indent 4 }}
+{{- end }}
