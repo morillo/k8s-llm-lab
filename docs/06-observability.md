@@ -245,7 +245,15 @@ URL=$(sed "s/DS_UID/$DS_UID/g" dashboards/vllm-lab.json \
 open "http://localhost:3000$URL"
 ```
 
-Expected reply: `"status":"success"` and a `"url":"/d/<uid>/vllm-lab"`. `"overwrite": true` in the file makes re-running safe: edit the JSON and run the `URL=...` command again to update the dashboard, or after a cluster rebuild to recreate it. The chart's own dashboards are ConfigMaps a Grafana sidecar loads automatically; packaging this JSON the same way would make it fully declarative.
+Expected reply: `"status":"success"` and a `"url":"/d/<uid>/vllm-lab"`. `"overwrite": true` in the file makes re-running safe: edit the JSON and run the `URL=...` command again to update the dashboard.
+
+**This copy does not survive a restart.** A dashboard created through the HTTP API, or in the web UI, lives in Grafana's internal database, which kube-prometheus-stack keeps in a temporary volume. It is lost whenever the Grafana pod is recreated; in this lab it was gone after a reboot. kube-prometheus-stack's built-in dashboards survive because they are ConfigMaps labeled `grafana_dashboard: "1"`, and a sidecar container in the Grafana pod loads every such ConfigMap into Grafana on each start:
+
+```bash
+kubectl -n monitoring get configmap -l grafana_dashboard=1 | head -5     # kube-prometheus-stack's own dashboards use this label
+```
+
+The API method stays here as the quick way to try and iterate on a dashboard. For the durable version, this lab ships the same JSON as a labeled ConfigMap in its Helm chart: see [chapter 09, step 9.8](09-helm.md#98-ship-the-grafana-dashboard-in-the-chart). It then has a fixed URL, `http://localhost:3000/d/vllm-lab`, and Grafana marks it as provisioned.
 
 ## Key takeaways
 
@@ -253,6 +261,6 @@ Expected reply: `"status":"success"` and a `"url":"/d/<uid>/vllm-lab"`. `"overwr
 - Probe noise is a logging design problem; fix it at the source.
 - Know the sampling interval of every metric you reason about (Prometheus 15 s here, vLLM's log 10 s).
 - Benchmarks with repeated synthetic prompts overstate performance when prefix caching is on.
-- Dashboards belong in Git like any other configuration.
+- Dashboards belong in Git like any other configuration, and in the cluster as ConfigMaps: anything created only through Grafana's API or UI disappears with the Grafana pod.
 
 Next: [07 — Scaling, rollouts, HPA](07-scaling-rollouts-hpa.md)

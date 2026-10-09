@@ -105,9 +105,10 @@ docker tag  vllm/vllm-openai-cpu:$VLLM_TAG localhost:5001/vllm-openai-cpu:$VLLM_
 docker push localhost:5001/vllm-openai-cpu:$VLLM_TAG
 docker build -t localhost:5001/chat-ui:0.2.0 app/ && docker push localhost:5001/chat-ui:0.2.0
 
-# 3) Install the lab (the ServiceMonitor needs kube-prometheus-stack; chapter 06 adds it)
-helm upgrade --install llm-lab charts/llm-lab -n llm \
-  --set vllm.image.tag=$VLLM_TAG --set monitoring.serviceMonitor=false
+# 3) Install the lab. The ServiceMonitor and the Grafana dashboard need kube-prometheus-stack
+#    (chapter 06 adds it), so they stay off for now
+helm upgrade --install llm-lab charts/llm-lab -n llm --set vllm.image.tag=$VLLM_TAG \
+  --set monitoring.serviceMonitor=false --set monitoring.grafanaDashboard.enabled=false
 kubectl rollout status deploy/vllm --timeout=20m                     # first start downloads ~3 GB of weights
 
 # 4) Ask a question
@@ -116,7 +117,7 @@ curl -N -s localhost:8080/api/ask -H 'Content-Type: application/json' \
   -d '{"question": "Explain a Kubernetes Service in two sentences."}'; echo
 ```
 
-After installing kube-prometheus-stack ([chapter 06](docs/06-observability.md#65-prometheus-and-grafana-kube-prometheus-stack)), enable the ServiceMonitor with `helm upgrade llm-lab charts/llm-lab -n llm --set vllm.image.tag=$VLLM_TAG`.
+After installing kube-prometheus-stack ([chapter 06](docs/06-observability.md#65-prometheus-and-grafana-kube-prometheus-stack)), run `helm upgrade llm-lab charts/llm-lab -n llm --set vllm.image.tag=$VLLM_TAG` to install the chart with its defaults. That enables the ServiceMonitor and also provisions the vLLM lab Grafana dashboard, shipped in the chart as a ConfigMap. With the Grafana port-forward running, it is at `http://localhost:3000/d/vllm-lab` and survives Grafana restarts ([chapter 09, step 9.8](docs/09-helm.md#98-ship-the-grafana-dashboard-in-the-chart)).
 
 ## Measured results
 
@@ -146,7 +147,7 @@ Measured on an Apple M4 Max with a 16-vCPU / 48 GB Docker Desktop VM, vLLM `v0.3
 | 06 | [Observability](docs/06-observability.md) | kubectl, logs, k9s, node internals, Prometheus, benchmarks, Grafana dashboard as code |
 | 07 | [Scaling, rollouts, HPA](docs/07-scaling-rollouts-hpa.md) | Scaling, the accelerator wall, rollout/rollback, drift, config restarts, HPA |
 | 08 | [Troubleshooting drills](docs/08-troubleshooting-drills.md) | Diagnostic ladder and ten break-fix drills |
-| 09 | [Helm](docs/09-helm.md) | Chart, adopting live objects, server-side apply conflicts, upgrade and rollback |
+| 09 | [Helm](docs/09-helm.md) | Chart, adopting live objects, server-side apply conflicts, upgrade and rollback, the Grafana dashboard as a chart ConfigMap |
 | 10 | [From laptop to GPU cloud](docs/10-gpu-cloud.md) | What changes on real GPUs — **not yet run** |
 | 11 | [Lessons learned](docs/11-lessons-learned.md) | Real problems hit, how each was diagnosed and fixed, key takeaways |
 | — | [Cheat sheet](docs/cheatsheet.md) | Commands worth knowing by heart |
@@ -166,7 +167,17 @@ Measured on an Apple M4 Max with a 16-vCPU / 48 GB Docker Desktop VM, vLLM `v0.3
 │   ├── 20-chat-ui.yaml         # ConfigMap, Deployment, NodePort Service
 │   └── 30-vllm-servicemonitor.yaml
 ├── charts/llm-lab/             # Helm chart that replaces manifests/ from chapter 09 on
-├── dashboards/vllm-lab.json    # Grafana dashboard (loaded via the Grafana HTTP API)
+│   ├── Chart.yaml
+│   ├── values.yaml             # Mac-lab defaults; monitoring.serviceMonitor, monitoring.grafanaDashboard
+│   ├── dashboards/
+│   │   └── vllm-lab.json       # the dashboard as Grafana provisions it (fixed UID vllm-lab), derived from dashboards/
+│   └── templates/
+│       ├── vllm.yaml           # PVC hf-cache, Deployment and Service vllm
+│       ├── chat-ui-configmap.yaml
+│       ├── chat-ui.yaml        # Deployment and NodePort Service chat-ui
+│       ├── servicemonitor.yaml
+│       └── grafana-dashboard.yaml   # ConfigMap vllm-lab-dashboard in monitoring, labeled grafana_dashboard: "1"
+├── dashboards/vllm-lab.json    # source dashboard for the Grafana HTTP API (chapter 06); the chart's copy is derived from it
 ├── docs/                       # the chapters
 └── LICENSE                     # Apache-2.0
 ```
