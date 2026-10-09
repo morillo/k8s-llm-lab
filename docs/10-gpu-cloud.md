@@ -58,9 +58,26 @@ vllm:
 chatUi:
   image:
     repository: <your-registry>/chat-ui     # a registry the GPU cluster can pull from; build multi-arch
+monitoring:
+  serviceMonitor: false        # enable once kube-prometheus-stack is installed on the GPU cluster
+  grafanaDashboard:
+    enabled: false
 ```
 
-Intended install: `helm upgrade --install llm-lab charts/llm-lab -n llm -f values-gpu.yaml --set vllm.image.tag=<cuda-tag>`. Helm deep-merges maps, so a key from `values.yaml` survives unless you set it to `null`; that is why `example.com/gpu: null` and `pool: null` appear. Lists such as `tolerations` are replaced whole.
+Intended install on a fresh GPU cluster, in this order (not yet run):
+
+```bash
+# Prerequisite: the NVIDIA GPU Operator or device plugin, so nodes advertise nvidia.com/gpu
+kubectl get nodes -o custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu
+
+# The namespace and the Hugging Face token Secret come first: the Llama model is gated
+kubectl create namespace llm
+read -rs HF_TOKEN && kubectl -n llm create secret generic hf-token --from-literal=HF_TOKEN="$HF_TOKEN"; unset HF_TOKEN
+
+helm upgrade --install llm-lab charts/llm-lab -n llm -f values-gpu.yaml --set vllm.image.tag=<cuda-tag>
+```
+
+`monitoring` is off in `values-gpu.yaml` because a fresh GPU cluster has neither the ServiceMonitor CRD nor the `monitoring` namespace that the dashboard ConfigMap goes into ([chapter 09, step 9.8](09-helm.md#98-ship-the-grafana-dashboard-in-the-chart)); turn both on once kube-prometheus-stack is installed. Helm deep-merges maps, so a key from `values.yaml` survives unless you set it to `null`; that is why `example.com/gpu: null` and `pool: null` appear. Lists such as `tolerations` are replaced whole.
 
 ## GPU sizing with the KV-cache formula
 

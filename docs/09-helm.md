@@ -176,7 +176,7 @@ Roll it out on a release installed before the chart had the dashboard:
 cd ~/k8s-llm-lab && source lab.env
 GF_PASS=$(kubectl -n monitoring get secret kps-grafana -o jsonpath='{.data.admin-password}' | base64 -d)
 
-# 1) Remove earlier copies: any API-created dashboard (same title would clash) and any hand-made ConfigMap
+# 1) Remove earlier copies: any API-created dashboard (same title as the provisioned one) and any hand-made ConfigMap
 for uid in $(curl -s -u "admin:$GF_PASS" "localhost:3000/api/search?query=vLLM%20lab&type=dash-db" | jq -r '.[].uid'); do
   curl -s -u "admin:$GF_PASS" -X DELETE "localhost:3000/api/dashboards/uid/$uid" | jq -r .message
 done
@@ -195,7 +195,7 @@ kubectl get pods                                  # same pod ages as before: the
 open http://localhost:3000/d/vllm-lab
 ```
 
-The `GF_PASS` and `curl` commands need the Grafana port-forward from [chapter 06, step 6.5](06-observability.md#65-prometheus-and-grafana-kube-prometheus-stack). If you install the chart for the first time from this repository (9.5, or a rebuild), the ConfigMap is already part of that install: remove the API-created copy from 6.8 first (the `for` loop in step 1), and use step 3 to verify.
+The `GF_PASS` and `curl` commands need the Grafana port-forward from [chapter 06, step 6.5](06-observability.md#65-prometheus-and-grafana-kube-prometheus-stack). In this lab, step 1 was run before the upgrade and printed `Dashboard vLLM lab deleted`, so the title clash it prevents (two dashboards named `vLLM lab` in the same folder) was never observed; the step is a precaution. If you install the chart for the first time from this repository (9.5, or a rebuild), the ConfigMap is already part of that install: run the same `for` loop first to remove the API-created copy from 6.8, and use step 3 to verify.
 
 Verified in this lab: `helm lint` clean; the preview showed only the new ConfigMap; the upgrade succeeded (it became revision 10 of this release); the ConfigMap carries `app.kubernetes.io/managed-by: Helm` and release `llm-lab`; Grafana reported `vLLM lab` / `true` (provisioned); no pod restarted.
 
