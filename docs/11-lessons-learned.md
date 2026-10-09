@@ -98,6 +98,16 @@ A related adoption detail: drill 7 left `spec.strategy.rollingUpdate` owned by `
 
 **Fix.** `helm rollback llm-lab 1 -n llm` restored a consistent state (it becomes a new revision; the broken one stays marked `failed`). Then the upgrade was repeated with `--force-conflicts`, and a final rollback confirmed the round trip (`MAX_TOKENS` 128, then 256, with chat-ui rolling automatically each time). Helm 4's `--rollback-on-failure` (Helm 3: `--atomic`) automates the rollback.
 
+## 10. The custom Grafana dashboard disappeared after a reboot
+
+**Symptom.** After a reboot, everything in the lab came back (the model on the PVC, the Helm release, kube-prometheus-stack's built-in dashboards), but the vLLM lab dashboard from [chapter 06](06-observability.md#68-grafana-built-in-dashboards-plus-a-vllm-dashboard-as-code) was gone.
+
+**Diagnosis.** That dashboard had been created through Grafana's HTTP API. Dashboards created through the API or the web UI are stored in Grafana's internal database, which kube-prometheus-stack keeps in a temporary volume, so they are lost whenever the Grafana pod is recreated. The built-in dashboards survived because they are not in that database at all: they are ConfigMaps labeled `grafana_dashboard: "1"`, and a sidecar container in the Grafana pod loads them on every start (`kubectl -n monitoring get configmap -l grafana_dashboard=1`).
+
+**Fix.** First, provision the dashboard the same way: the JSON from `dashboards/vllm-lab.json`, unwrapped and given the fixed UID `vllm-lab`, in a ConfigMap carrying that label. Grafana then lists it as provisioned and reloads it on every start. Second, since a hand-made ConfigMap is one more object that no release describes, move it into the Helm chart ([`templates/grafana-dashboard.yaml`](../charts/llm-lab/templates/grafana-dashboard.yaml), [chapter 09, step 9.8](09-helm.md#98-ship-the-grafana-dashboard-in-the-chart)), so the lab has one owner. A `helm upgrade` that only adds this object needs no `--force-conflicts` and restarts no pods; a rebuild needs no separate dashboard step; and `helm uninstall` removes the dashboard with the rest of the lab.
+
+**Lesson.** Anything you create only through an application's API or UI lives as long as that application's storage. If it must survive a restart, declare it as a Kubernetes object, and give that object one owner.
+
 ## Smaller lessons
 
 | Problem or trap | Diagnosis and fix |
