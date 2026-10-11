@@ -9,16 +9,18 @@ docker desktop start            # or open the Docker Desktop app; wait until `do
 docker start kind-registry llm-lab-control-plane llm-lab-worker llm-lab-worker2   # no-op for any already running
 kubectl get nodes -w            # all three Ready, usually within 1–2 minutes; Ctrl-C
 cd ~/k8s-llm-lab && ./cluster/up.sh   # repair mode: re-applies the taint and the fake GPU, which node status can lose on restart
-kubectl get pods -A | grep -v Running   # only the header line once everything is up; vLLM needs about a minute to load
+kubectl get pods -A | grep -v Running   # header only once up; a metrics-server pod may briefly show Terminating because up.sh just rolled it
 
 # Port-forwards do not survive a reboot; start the ones you need again
 kubectl -n monitoring port-forward svc/kps-kube-prometheus-stack-prometheus 9090:9090 >/dev/null &
 kubectl -n monitoring port-forward svc/kps-grafana 3000:80 >/dev/null &
 curl -s localhost:8080/api/backend | jq -r .reachable    # true
-open http://localhost:3000/d/vllm-lab                    # the vLLM lab dashboard, reloaded from its ConfigMap
+GF_PASS=$(kubectl -n monitoring get secret kps-grafana -o jsonpath='{.data.admin-password}' | base64 -d)
+until curl -sf -u "admin:$GF_PASS" localhost:3000/api/dashboards/uid/vllm-lab >/dev/null; do echo "waiting for Grafana..."; sleep 5; done
+open http://localhost:3000/d/vllm-lab
 ```
 
-The model on the PVC, the images in the registry, and the Helm release survive a restart. The vLLM lab Grafana dashboard comes back automatically, but only because the chart ships it as a ConfigMap labeled `grafana_dashboard: "1"` ([chapter 09, step 9.8](09-helm.md#98-ship-the-grafana-dashboard-in-the-chart)): Grafana's own database is lost when its pod is recreated, and a sidecar reloads the dashboard from the ConfigMap. A copy created through the HTTP API or the web UI ([chapter 06, step 6.8](06-observability.md#68-grafana-built-in-dashboards-plus-a-vllm-dashboard-as-code)) does not survive. If the nodes are not `Ready` after a few minutes, or the vLLM pod stays `Pending` after `up.sh`, check `kubectl describe pod -l app=vllm` and `kubectl get nodes`. The last resort is a rebuild (below), which also re-downloads the model because the PVC goes with the cluster.
+The model on the PVC, the images in the registry, and the Helm release survive a restart. So do Grafana's dashboards: a reboot restarts the Grafana containers in the same pod, and Grafana's database is on an `emptyDir`, which survives container restarts. Right after a reboot, Grafana can answer `Dashboard not found` for up to a minute while it starts and loads provisioned dashboards; the `until` loop above waits for the vLLM lab dashboard through Grafana's API before opening it. A dashboard created through the HTTP API or the web UI ([chapter 06, step 6.8](06-observability.md#68-grafana-built-in-dashboards-plus-a-vllm-dashboard-as-code)) is lost only when the Grafana pod is replaced (a rollout, a kube-prometheus-stack upgrade, an eviction, or a rebuild). The vLLM lab dashboard survives those too, because the chart ships it as a ConfigMap labeled `grafana_dashboard: "1"` that a sidecar reloads on every start ([chapter 09, step 9.8](09-helm.md#98-ship-the-grafana-dashboard-in-the-chart)). If the nodes are not `Ready` after a few minutes, or the vLLM pod stays `Pending` after `up.sh`, check `kubectl describe pod -l app=vllm` and `kubectl get nodes`. The last resort is a rebuild (below), which also re-downloads the model because the PVC goes with the cluster.
 
 ## Delete the cluster
 

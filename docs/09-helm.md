@@ -213,6 +213,6 @@ To change the dashboard later, edit `dashboards/vllm-lab.json`, regenerate the c
 - With Helm 4's server-side apply, adopted objects keep shared field ownership; `--force-conflicts` is the deliberate way to take a field over.
 - A failed upgrade can leave a partial state; `helm rollback` (or `--rollback-on-failure`) returns to a consistent revision.
 - One tool owns an object. Mixing kubectl and Helm on the same objects is drift by design.
-- A Grafana dashboard shipped as a labeled ConfigMap in the chart is provisioned, survives Grafana restarts, and is removed with the release.
+- A Grafana dashboard shipped as a labeled ConfigMap in the chart is provisioned, survives Grafana pod replacement and cluster rebuilds, and is removed with the release.
 
 Next: [10 — From laptop to GPU cloud](10-gpu-cloud.md)

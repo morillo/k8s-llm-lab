@@ -117,7 +117,7 @@ curl -N -s localhost:8080/api/ask -H 'Content-Type: application/json' \
   -d '{"question": "Explain a Kubernetes Service in two sentences."}'; echo
 ```
 
-After installing kube-prometheus-stack ([chapter 06](docs/06-observability.md#65-prometheus-and-grafana-kube-prometheus-stack)), run `helm upgrade llm-lab charts/llm-lab -n llm --set vllm.image.tag=$VLLM_TAG` to install the chart with its defaults. That enables the ServiceMonitor and also provisions the vLLM lab Grafana dashboard, shipped in the chart as a ConfigMap. With the Grafana port-forward running, it is at `http://localhost:3000/d/vllm-lab` and survives Grafana restarts ([chapter 09, step 9.8](docs/09-helm.md#98-ship-the-grafana-dashboard-in-the-chart)).
+After installing kube-prometheus-stack ([chapter 06](docs/06-observability.md#65-prometheus-and-grafana-kube-prometheus-stack)), run `helm upgrade llm-lab charts/llm-lab -n llm --set vllm.image.tag=$VLLM_TAG` to install the chart with its defaults. That enables the ServiceMonitor and also provisions the vLLM lab Grafana dashboard, shipped in the chart as a ConfigMap. With the Grafana port-forward running, it is at `http://localhost:3000/d/vllm-lab` and survives Grafana pod replacement and cluster rebuilds ([chapter 09, step 9.8](docs/09-helm.md#98-ship-the-grafana-dashboard-in-the-chart)).
 
 ## Measured results
 
