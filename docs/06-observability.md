@@ -247,7 +247,16 @@ open "http://localhost:3000$URL"
 
 Expected reply: `"status":"success"` and a `"url":"/d/<uid>/vllm-lab"`. `"overwrite": true` in the file makes re-running safe: edit the JSON and run the `URL=...` command again to update the dashboard.
 
-**This copy does not survive a restart.** A dashboard created through the HTTP API, or in the web UI, lives in Grafana's internal database, which kube-prometheus-stack keeps in a temporary volume. It is lost whenever the Grafana pod is recreated; in this lab it was gone after a reboot. kube-prometheus-stack's built-in dashboards survive because they are ConfigMaps labeled `grafana_dashboard: "1"`, and a sidecar container in the Grafana pod loads every such ConfigMap into Grafana on each start:
+**This copy lives only as long as the Grafana pod.** A dashboard created through the HTTP API, or saved in the web UI, is stored in Grafana's internal database. kube-prometheus-stack keeps that database on an `emptyDir` volume named `storage`, mounted at `/var/lib/grafana`:
+
+```bash
+kubectl -n monitoring get deploy kps-grafana -o jsonpath='{range .spec.template.spec.volumes[*]}{.name}{"  emptyDir="}{.emptyDir}{"\n"}{end}'
+# storage  emptyDir={}   among the other volumes
+```
+
+An `emptyDir` survives container restarts but not pod replacement. A reboot of the host restarts the containers in the same pod, so the dashboard is still there afterwards; in this lab, after several reboots, the Grafana pod was 7 days old with 12 container restarts and its dashboards were present. The dashboard is lost when the Grafana pod is replaced: a rollout (`kubectl -n monitoring rollout restart deploy/kps-grafana`), a kube-prometheus-stack upgrade, an eviction, or a cluster rebuild. Right after a reboot, Grafana can answer `Dashboard not found` for up to a minute while it starts and loads provisioned dashboards; that is timing, not data loss.
+
+kube-prometheus-stack's built-in dashboards survive pod replacement because they are not in that database: they are ConfigMaps labeled `grafana_dashboard: "1"`, and a sidecar container in the Grafana pod loads every such ConfigMap into Grafana on each start:
 
 ```bash
 kubectl -n monitoring get configmap -l grafana_dashboard=1 | head -5     # kube-prometheus-stack's own dashboards use this label
@@ -261,6 +270,6 @@ The API method stays here as the quick way to try and iterate on a dashboard. Fo
 - Probe noise is a logging design problem; fix it at the source.
 - Know the sampling interval of every metric you reason about (Prometheus 15 s here, vLLM's log 10 s).
 - Benchmarks with repeated synthetic prompts overstate performance when prefix caching is on.
-- Dashboards belong in Git like any other configuration, and in the cluster as ConfigMaps: anything created only through Grafana's API or UI disappears with the Grafana pod.
+- Dashboards belong in Git like any other configuration, and in the cluster as ConfigMaps: anything created only through Grafana's API or UI lives on an `emptyDir` and disappears when the Grafana pod is replaced.
 
 Next: [07 — Scaling, rollouts, HPA](07-scaling-rollouts-hpa.md)
