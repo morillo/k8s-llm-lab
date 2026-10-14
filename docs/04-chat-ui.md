@@ -15,7 +15,7 @@ A ~140-line FastAPI service serves one HTML page, forwards the question to vLLM 
 7. **`tokens()`** is an async generator: each chunk's `delta.content` goes to the browser the moment vLLM produces it, and the server logs time to first token (TTFT) and total time per request (`answered ttft=... total=...`).
 8. **The page's JavaScript** reads the response body as a stream, appends text as it arrives, then shows TTFT, total time, and which pod answered.
 
-[`app/Dockerfile`](../app/Dockerfile) builds on `python:3.12-slim` and runs as the numeric UID 10001, so the pod can enforce `runAsNonRoot`. Dependencies are in [`app/requirements.txt`](../app/requirements.txt).
+[`app/Dockerfile`](../app/Dockerfile) builds on `python:3.12-slim` and runs as the numeric UID 10001, so the pod can enforce `runAsNonRoot`. Dependencies are declared in [`app/pyproject.toml`](../app/pyproject.toml) and locked in `app/uv.lock`; [`app/requirements.txt`](../app/requirements.txt) is generated from the lock with `uv export --format requirements-txt --no-hashes -o requirements.txt` for the Docker build. Local setup: `cd app && uv sync` (uv installs the Python pinned in `.python-version`).
 
 ## 4.2 Build and push
 
