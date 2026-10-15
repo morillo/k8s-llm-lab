@@ -8,3 +8,8 @@ dependencies = [
     "openai>=1.40",
     "uvicorn[standard]>=0.30",
 ]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+]
